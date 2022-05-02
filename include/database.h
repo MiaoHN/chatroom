@@ -64,6 +64,10 @@ class Database {
   }
 
   const std::string operator[](int index) {
+    if (index >= ncolumn) {
+      LOG_ERROR("database[] overlap");
+      return "";
+    }
     return std::string(result[idx_ * ncolumn + index]);
   }
 
