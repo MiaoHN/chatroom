@@ -53,7 +53,7 @@ class LogLevel {
 class Logger {
  public:
   using ptr = std::shared_ptr<Logger>;
-  Logger(const std::string name) : _name(name) {}
+  Logger(const std::string name) : name_(name) {}
 
  public:
   static Logger::ptr GetInstance(const std::string& name = "log.log") {
@@ -77,16 +77,16 @@ class Logger {
       std::stringstream ss;
       ss << "[" << LogLevel::ToString(level) << "]\t" << getCurrentTime() << " "
          << buf;
-      _mutex.lock();
+      mutex_.lock();
       std::cout << ss.str() << std::endl;
-      _mutex.unlock();
+      mutex_.unlock();
       free(buf);
     }
   }
 
  private:
-  std::string _name;  // 日志名称
-  std::mutex _mutex;  // 线程锁
+  std::string name_;  // 日志名称
+  std::mutex mutex_;  // 线程锁
 };
 
 #endif  // __LOG_H__
