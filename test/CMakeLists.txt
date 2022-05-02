@@ -1,6 +1,6 @@
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin/test)
 
-set(LIBS pthread sqlite3)
+set(LIBS chatroom)
 
 file(GLOB FILES "*.cpp")
 
