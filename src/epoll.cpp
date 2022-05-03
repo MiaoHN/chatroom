@@ -1,5 +1,7 @@
 #include "epoll.h"
 
+#include "packet.h"
+
 Epoller::Epoller(int num) {
   _epollfd = epoll_create(num);
   _magic = MAGIC;
@@ -51,31 +53,19 @@ void Epoller::handle_accept() {
 void Epoller::handle_read(int sock) {
   Event eve;
   Socket::ptr s(new Socket(sock));
-  int magic;
-  int length;
-  int r = s->Recv(&magic, sizeof(unsigned int), 0);
-  if (r == 0) {
-    LOG_WARN("socket %d closed", sock);
-    s->Close();
+  char buf[BUFSIZ];
+  int ret = s->Recv(eve.buf, sizeof(eve.buf), 0);
+  if (ret == 0) {
+    eve.size = -1;
+    eve.sock = s;
+    _manager->Add(eve);
     return;
-  }
-  if (magic != _magic) {
-    LOG_WARN("warn magic: %d", magic);
-    return;
-  }
-  r = s->Recv(&length, sizeof(int), 0);
-  if (r == 0) {
-    LOG_WARN("socket %d closed", sock);
-    s->Close();
-    return;
-  }
-  r = s->Recv(eve.buf, length, 0);
-  if (r == -1) {
+  } else if (ret == -1) {
     LOG_ERROR("recv error");
     return;
   }
   eve.sock = s;
-  eve.size = r;
+  eve.size = ret;
   _manager->Add(eve);
 }
 

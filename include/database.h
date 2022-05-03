@@ -31,6 +31,7 @@ class Database {
 
   bool Readable();
 
+  const std::string index(const std::string& col);
   const std::string operator[](const std::string& col);
 
  private:

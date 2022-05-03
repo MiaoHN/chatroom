@@ -7,6 +7,7 @@
 #include "epoll.h"
 #include "event_manager.h"
 #include "log.h"
+#include "packet.h"
 #include "socket.h"
 #include "tcp_server.h"
 

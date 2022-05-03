@@ -48,8 +48,9 @@ void Database::Query(const std::string& query) {
 }
 
 void Database::error() {
-  LOG_ERROR("database: %s", errmsg);
+  LOG_FATAL("database: %s", errmsg);
   sqlite3_free(errmsg);
+  exit(-1);
 }
 
 const std::string Database::operator[](int index) {
@@ -68,6 +69,16 @@ bool Database::Readable() {
   return true;
 }
 
+const std::string Database::index(const std::string& col) {
+  int i;
+  for (i = 0; i < ncolumn; ++i) {
+    if (!strcmp(col.c_str(), result[i])) {
+      return std::string(result[idx_ * ncolumn + i]);
+    }
+  }
+  LOG_ERROR("database::operator[] no such column named '%s'", col.c_str());
+  return "";
+}
 const std::string Database::operator[](const std::string& col) {
   int i;
   for (i = 0; i < ncolumn; ++i) {
