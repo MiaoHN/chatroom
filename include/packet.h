@@ -60,6 +60,11 @@ struct LoginPacket : public PacketHeader {
 };
 
 struct LogoutPacket : public PacketHeader {
+  LogoutPacket() {}
+  LogoutPacket(int _id) {
+    cmd = LOGOUT;
+    id = _id;
+  }
   int id;
 };
 

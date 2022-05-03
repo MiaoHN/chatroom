@@ -151,7 +151,24 @@ void ServerHandler::handle_login(Event& event) {
 }
 
 void ServerHandler::handle_logout(Event& event) {
-  // TODO
+  // 更新数据库，删除_user中的值，关闭socket
+  LogoutPacket pkt;
+  memcpy(&pkt, event.buf, sizeof(pkt));
+  for (auto iter = _users.begin(); iter != _users.end(); ++iter) {
+    // 找到了该用户
+    if (iter->second == pkt.id) {
+      _users.erase(iter);
+      std::stringstream ss;
+      ss << "UPDATE muser SET status = 0, time = CURRENT_TIMESTAMP WHERE uid = "
+         << pkt.id << ";";
+      _db->Exec(ss.str());
+      ss.str("");
+      LOG_INFO("uid=%d logout", pkt.id);
+      return;
+    }
+  }
+  // 没找到
+  LOG_ERROR("no such uid=%d", pkt.id);
 }
 
 void ServerHandler::LinkDatabase(Database::ptr db) {

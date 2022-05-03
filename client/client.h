@@ -17,13 +17,12 @@ class Client {
   void Start();
 
   void Login() {
-    int id;
     std::string passwd;
     std::cout << "id: ";
-    std::cin >> id;
+    std::cin >> _id;
     std::cout << "passwd: ";
     std::cin >> passwd;
-    LoginPacket pkt(id, passwd);
+    LoginPacket pkt(_id, passwd);
     _sock->Send(&pkt, sizeof(pkt), 0);
     _sock->Recv(&pkt, sizeof(pkt), 0);
     if (!strcmp(pkt.name, "")) {
@@ -32,6 +31,18 @@ class Client {
       LOG_INFO("login successful, your username=%s", pkt.name);
       _islogin = true;
     }
+  }
+
+  void Logout() {
+    if (!_islogin) {
+      LOG_ERROR("is not login");
+      return;
+    }
+    LogoutPacket pkt(_id);
+    _sock->Send(&pkt, sizeof(pkt), 0);
+    LOG_DEBUG("logout");
+
+    return;
   }
 
   void Register() {
@@ -70,6 +81,7 @@ class Client {
  private:
   Socket::ptr _sock;
   bool _islogin = false;
+  int _id;
 };
 
 #endif  // __CLIENT_H__

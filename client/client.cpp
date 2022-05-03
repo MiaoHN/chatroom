@@ -9,6 +9,7 @@ void Client::Connect(const std::string& addr, int port) {
 void Client::Start() {
   while (true) {
     Login();
+    Logout();
   }
 }
 
