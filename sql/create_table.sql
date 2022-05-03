@@ -40,3 +40,10 @@ CREATE TABLE IF NOT EXISTS mfile (
   status INTEGER DEFAULT 0,
   curr INTEGER DEFAULT 0
 );
+
+-- 每次新建表时重置登陆状态
+UPDATE
+  muser
+SET
+  status = 0,
+  time = NULL;
