@@ -8,6 +8,11 @@ Socket::Socket() {
   }
 }
 
+Socket::ptr Socket::Accept() {
+  int sock = accept(_sock, nullptr, nullptr);
+  return std::make_shared<Socket>(sock);
+}
+
 void Socket::Close() { close(_sock); }
 
 void Socket::Bind(Address::ptr address) {
@@ -17,7 +22,7 @@ void Socket::Bind(Address::ptr address) {
   }
 }
 
-int Socket::GetSock() const { return _sock; }
+int Socket::GetFd() const { return _sock; }
 
 void Socket::Listen(int num) {
   int ret = listen(_sock, num);

@@ -1,17 +1,211 @@
 # Chatroom
 
-C++ 聊天室
+C++ 控制台聊天室
+
+## 实现功能
+
+- 私聊
+- 广播
+- 发送文件
+
+## 协议设计
 
 ## 结构设计
 
-`epoll` + 工作队列 + 线程池实现高并发。`server` 端提供 `EventHandler` 接口
+### TCPServer 设计
+
+`TCPServer` 使用 `epoll` 监听客户端请求，收到请求后将报文存储到 `SyncQueue` 并等待线程池处理请求
+
+下面是类图：
 
 ```mermaid
 classDiagram
-class EventHandler {
-  + virtual void handler()
+direction LR
+class TCPServer {
+  +TCPServer(const std::string& address, int port)
+  +LinkHandler(EventHandler::ptr handler) void
+  +Start() void
+
+  -InitSocket(const std::string& address, int port) void
+  -InitEpoll() void
+
+  -Socket::ptr _socket
+  -Address::ptr _address
+  -EventHandler::ptr _handler
+  -Epoller::ptr _epoller
 }
+class Epoller {
+  +Epoller(int num = 32)
+  +AddManager(EventManager::ptr manager) void
+  +AddListener(Socket::ptr sock) void
+  +Start() void
+  -handle_accept() void
+  -handle_read(int sock) void
+  -setnonblocking(int sock) void
+  -int _epollfd
+  -Socket::ptr _listensock
+  -epoll_event events[1000]
+  -EventManager::ptr _manager
+}
+
+class Event {
+  +Socket::ptr sock
+  +char buf[BUFSIZ]
+  +int size
+  +EventType type
+}
+
+class EventHandler {
+  <<interface>>
+  +EventHandler()
+  +virtual ~EventHandler()
+
+  +virtual void handle_read(Event& event)
+  +virtual void handle_disconnect(Event& event)
+}
+
+class EventManager {
+  +EventManager(EventHandler::ptr handler, int threads = 10)
+  +~EventManager() void
+  +Add(Event event) void
+  +Stop() void
+  -EventHandler::ptr _handler
+  -SyncQueue~Event~ _queue
+  -std::mutex _mutex
+  -std::condition_variable _notempty
+  -std::vector~std::thread~ _threads
+  -int _thread_num
+  -bool _isrunning
+}
+class SyncQueue~T~ {
+  +SyncQueue()
+  +Add(T& item) void
+  +Get() T
+  +IsEmpty() bool
+  -std::mutex _mutex
+  -std::queue~T~ _queue
+}
+
+class Socket {
+  +Socket(int sock)
+  +Socket()
+  +Bind(Address::ptr address) void
+  +Listen(int num) void
+  +Accept() Socket::ptr
+  +Connect(const std::string& addr, int port) void
+  +Connect(Address::ptr address) void
+  +Recv(void* buf, size_t size, int flag = 0) int
+  +Send(const void* buf, size_t size, int flag = 0) int
+  +GetFd() int
+  +SetOpt(int optname, int val) void
+  +SetNoBlock() void
+  +Close() void
+  -error(const std::string& msg) void
+  -int _sock
+}
+
+TCPServer --> Epoller
+TCPServer --> EventHandler
+TCPServer --> Socket
+Epoller --> EventManager
+Epoller --> Socket
+EventManager --> EventHandler
+EventManager --> SyncQueue
+EventHandler ..> Event
+Event --> Socket
 ```
+
+结合类图可以看出 `TCPServer` 的运作分如下几个部分：
+
+1. `Epoller` 负责监听 `epoll` 描述符监听客户端的连接和请求操作。当 `Epoller` 接收到连接请求时，创建 `Event` 结构体并将其送至 `EventManager` 中
+2. `EventManager` 一旦接收到来自 `Epoller` 的数据，便将其添加到 `SyncQueue` 这个同步队列中
+3. `EventManager` 在初始化时创建了一个线程池，只要 `SyncQueue` 中有数据，就会唤醒一个线程处理从 `Epoller` 传来的数据
+
+经过上面几个类的处理，我们将客户端请求的处理函数分离了出来，在完成我们的聊天室时只需实现 `EventHandler` 这个接口即可
+
+### 聊天室服务端设计
+
+```mermaid
+classDiagram
+class Event {
+  +Socket::ptr sock
+  +char buf[BUFSIZ]
+  +int size
+  +EventType type
+}
+
+class EventHandler {
+  <<interface>>
+  +EventHandler()
+  +virtual ~EventHandler()
+
+  +virtual void handle_read(Event& event)
+  +virtual void handle_disconnect(Event& event)
+}
+class Database {
+  +Database()
+  +Database(const std::string& name)
+  +~Database()
+  +Open(const std::string& name) void
+  +Close() void
+  +Exec(const std::string& query) viod
+  +Query(const std::string& query) void
+  -error() void
+  +operator[](int index) std::string
+  +Readable() bool
+  +index(const std::string& col) std::string
+  +operator[](const std::string& col) std::String
+  +Exist(const std::string& table) bool
+  -sqlite3* db_
+  -char** result
+  -char* errmsg
+  -int nrow
+  -int ncolumn
+  -int idx_
+  -bool isopen_
+  -std::mutex mutex_
+}
+
+class ServerHandler {
+  +ServerHandler()
+  +~ServerHandler()
+
+  +void LinkDatabase(Database::ptr db)
+
+  -void handle_read(Event& event) override
+  -void handle_disconnect(Event& event) override
+
+  -init_database() void
+
+  -handle_register(Event& event) void
+  -handle_login(Event& event) void
+  -handle_logout(Event& event) void
+  -handle_query(Event& event) void
+  -handle_message(Event& event) void
+
+  -Database::ptr _db
+  -std::map~int, User::ptr~ _users
+}
+
+class User {
+  +User()
+  +User(int id, Socket::ptr sock)
+  +GetId() int
+  +SetSocket(Socket::ptr sock) void
+  +GetSocket() Socket::ptr
+  -int _id
+  -std::string _name
+  -Socket::ptr _sock
+}
+
+
+EventHandler --> Event
+ServerHandler --> Database
+ServerHandler ..|> EventHandler
+ServerHandler --> User
+```
+
+### 聊天室客户端设计
 
 ## 数据库设计
 
@@ -23,28 +217,6 @@ class EventHandler {
 
 - 这里的 `status` 保存用户登陆状态，取值为在线（1）和下线（0）
 - `time` 保存用户上次登陆时间或下线时间
-
-### friend
-
-| uid1 | uid2 |
-| ---- | ---- |
-| int  | int  |
-
-为加快数据库查询时间，我们默认 id1 < id2
-
-### group
-
-| gid | uid | gname       |
-| --- | --- | ----------- |
-| int | int | varchar(32) |
-
-该表保存每个群聊的 `gid` 和其创建用户的 `uid` 还有群名称
-
-### groupuser
-
-| gid | uid |
-| --- | --- |
-| int | int |
 
 ### message
 
@@ -68,3 +240,8 @@ class EventHandler {
 - 0，客户端发送中
 - 1，已发送
 - 2，客户端接受中
+
+## TODO
+
+- 好友功能（好友添加请求 balabala）
+- 创建群聊（）

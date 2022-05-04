@@ -21,13 +21,15 @@ class Socket {
   void Bind(Address::ptr address);
   void Listen(int num);
 
+  Socket::ptr Accept();
+
   void Connect(const std::string& addr, int port);
   void Connect(Address::ptr address);
 
   int Recv(void* buf, size_t size, int flag = 0);
   int Send(const void* buf, size_t size, int flag = 0);
 
-  int GetSock() const;
+  int GetFd() const;
 
   void SetOpt(int optname, int val);
   void SetNoBlock();

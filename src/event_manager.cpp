@@ -11,7 +11,16 @@ EventManager::EventManager(EventHandler::ptr handler, int threads)
           return;
         }
         auto item = _queue.Get();
-        _handler->handle(item);
+        switch (item.type) {
+          case READ: {
+            _handler->handle_read(item);
+            break;
+          }
+          case DISCONNECT: {
+            _handler->handle_disconnect(item);
+            break;
+          }
+        }
       }
     }));
   }

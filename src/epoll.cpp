@@ -2,19 +2,16 @@
 
 #include "packet.h"
 
-Epoller::Epoller(int num) {
-  _epollfd = epoll_create(num);
-  _magic = MAGIC;
-}
+Epoller::Epoller(int num) { _epollfd = epoll_create(num); }
 
 void Epoller::AddManager(EventManager::ptr manager) { _manager = manager; }
 
 void Epoller::AddListener(Socket::ptr sock) {
-  _listenfd = sock->GetSock();
+  _listensock = sock;
   struct epoll_event ev;
   ev.events = EPOLLIN;
-  ev.data.fd = _listenfd;
-  epoll_ctl(_epollfd, EPOLL_CTL_ADD, _listenfd, &ev);
+  ev.data.fd = _listensock->GetFd();
+  epoll_ctl(_epollfd, EPOLL_CTL_ADD, _listensock->GetFd(), &ev);
 }
 
 void Epoller::Start() {
@@ -25,7 +22,7 @@ void Epoller::Start() {
       continue;
     }
     for (int n = 0; n < nfds; ++n) {
-      if (events[n].data.fd == _listenfd) {
+      if (events[n].data.fd == _listensock->GetFd()) {
         handle_accept();
       } else {
         handle_read(events[n].data.fd);
@@ -35,18 +32,12 @@ void Epoller::Start() {
 }
 
 void Epoller::handle_accept() {
-  sockaddr_in cladr;
-  socklen_t len = sizeof(cladr);
-  int clientfd = accept(_listenfd, (struct sockaddr*)&cladr, &len);
-  if (clientfd == -1) {
-    LOG_ERROR("accept: %s", strerror(errno));
-    return;
-  }
-  setnonblocking(clientfd);
+  auto client = _listensock->Accept();
+  client->SetNoBlock();
   struct epoll_event ev;
   ev.events = EPOLLIN | EPOLLET;
-  ev.data.fd = clientfd;
-  epoll_ctl(_epollfd, EPOLL_CTL_ADD, clientfd, &ev);
+  ev.data.fd = client->GetFd();
+  epoll_ctl(_epollfd, EPOLL_CTL_ADD, client->GetFd(), &ev);
   LOG_DEBUG("EPOLLER::handle_accept accept a connection");
 }
 
@@ -58,6 +49,7 @@ void Epoller::handle_read(int sock) {
   if (ret == 0) {
     eve.size = -1;
     eve.sock = s;
+    eve.type = DISCONNECT;
     _manager->Add(eve);
     return;
   } else if (ret == -1) {
@@ -66,6 +58,7 @@ void Epoller::handle_read(int sock) {
   }
   eve.sock = s;
   eve.size = ret;
+  eve.type = READ;
   _manager->Add(eve);
 }
 

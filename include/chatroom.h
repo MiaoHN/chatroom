@@ -10,5 +10,6 @@
 #include "packet.h"
 #include "socket.h"
 #include "tcp_server.h"
+#include "user.h"
 
 #endif  // __CHATROOM_H__

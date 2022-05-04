@@ -10,10 +10,16 @@
 #include "sync_queue.h"
 #include "uncopyable.h"
 
+enum EventType {
+  READ,
+  DISCONNECT,
+};
+
 struct Event {
   Socket::ptr sock;
   char buf[BUFSIZ];
   int size;
+  EventType type;
 };
 
 class EventHandler {
@@ -22,7 +28,8 @@ class EventHandler {
   EventHandler() {}
   virtual ~EventHandler() {}
 
-  virtual void handle(Event& event) = 0;
+  virtual void handle_read(Event& event) = 0;
+  virtual void handle_disconnect(Event& event) = 0;
 };
 
 class EventManager {

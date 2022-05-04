@@ -34,6 +34,18 @@ class Database {
   const std::string index(const std::string& col);
   const std::string operator[](const std::string& col);
 
+  bool Exist(const std::string& table) {
+    std::stringstream ss;
+    ss << "SELECT * FROM " << table << ";";
+    Query(ss.str());
+    ss.str("");
+    if (!Readable()) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+
  private:
   sqlite3* db_;
   char** result;

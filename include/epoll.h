@@ -34,8 +34,7 @@ class Epoller : public Uncopyable {
 
  private:
   int _epollfd;
-  int _listenfd;
-  unsigned int _magic;
+  Socket::ptr _listensock;
   struct epoll_event events[1000];
   EventManager::ptr _manager;
 };

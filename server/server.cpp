@@ -2,11 +2,7 @@
 
 #include <fstream>
 
-void ServerHandler::handle(Event& event) {
-  if (event.size == -1) {
-    handle_disconnect(event);
-    return;
-  }
+void ServerHandler::handle_read(Event& event) {
   PacketHeader header;
   memcpy(&header, event.buf, sizeof(header));
   if (header.magic != MAGIC) {
@@ -19,10 +15,11 @@ void ServerHandler::handle(Event& event) {
   case CMD::name:      \
     return func(event)
 
-    XX(ECHO, handle_echo);
-    XX(LOGIN, handle_login);
-    XX(LOGOUT, handle_logout);
-    XX(REGISTER, handle_register);
+    XX(PLOGIN, handle_login);
+    XX(PLOGOUT, handle_logout);
+    XX(PREGISTER, handle_register);
+    XX(PMSG, handle_message);
+    XX(PQUERY, handle_query);
 #undef XX
     default:
       return;
@@ -35,39 +32,32 @@ void ServerHandler::init_database() {
   fs.open(sql_path);
   char ch;
   while (ss && fs.get(ch)) ss.put(ch);
-
   _db->Exec(ss.str());
 }
 
 void ServerHandler::handle_disconnect(Event& event) {
   LOG_DEBUG("disconnect");
   // 关闭连接事件，将该socket对应用户状态置为0
-  auto iter = _users.find(event.sock->GetSock());
-  if (iter == _users.end()) {
-    // 直接退出
-    event.sock->Close();
-    return;
-  } else {
-    std::stringstream ss;
-    ss << "UPDATE muser SET status = 0, time = CURRENT_TIMESTAMP WHERE uid = "
-       << iter->second << ";";
-    _db->Exec(ss.str());
-    ss.str("");
-    LOG_INFO("uid=%d disconnected", iter->second);
-    _users.erase(iter);
-    return;
+  for (auto& item : _users) {
+    if (item.second->GetSocket()->GetFd() == event.sock->GetFd()) {
+      // 找到该用户
+      std::stringstream ss;
+      ss << "UPDATE muser SET status = 0, time = CURRENT_TIMESTAMP WHERE uid = "
+         << item.first << ";";
+      _db->Exec(ss.str());
+      ss.str("");
+      LOG_INFO("uid=%d disconnected", item.first);
+      _users.erase(item.first);
+      event.sock->Close();
+      return;
+    }
   }
-}
-
-void ServerHandler::handle_echo(Event& event) {
-  EchoPacket pkt;
-  memcpy(&pkt, event.buf, sizeof(pkt));
-  LOG_INFO("receive echo packet: %s", pkt.msg);
-  event.sock->Send(&pkt, sizeof(pkt), 0);
+  // 直接退出
+  event.sock->Close();
+  return;
 }
 
 void ServerHandler::handle_register(Event& event) {
-  LOG_DEBUG("here");
   RegisterPacket pkt;
   memcpy(&pkt, event.buf, sizeof(pkt));
   if (pkt.id != 0) {
@@ -138,7 +128,25 @@ void ServerHandler::handle_login(Event& event) {
          << pkt.id << ";";
       _db->Exec(ss.str());
       ss.str("");
-      _users[event.sock->GetSock()] = pkt.id;
+      _users[pkt.id] = std::make_shared<User>(pkt.id, event.sock);
+      // 发送未读消息
+      std::stringstream ss;
+      ss << "SELECT * FROM mmessage WHERE tid = " << pkt.id << ";";
+      _db->Query(ss.str());
+      ss.str("");
+      while (_db->Readable()) {
+        int uid = std::stoi(_db->index("uid"));
+        int type = std::stoi(_db->index("type"));
+        int tid = std::stoi(_db->index("tid"));
+        std::string msg = _db->index("msg");
+        std::string mtime = _db->index("time");
+        MessagePacket msgpkt(uid, type, tid, mtime, msg);
+        _users[pkt.id]->GetSocket()->Send(&msgpkt, sizeof(msgpkt), 0);
+      }
+      // 删除未读消息
+      ss << "DELETE FROM mmessage WHERE tid = " << pkt.id << ";";
+      _db->Exec(ss.str());
+      ss.str("");
       return;
     }
   } else {
@@ -154,21 +162,109 @@ void ServerHandler::handle_logout(Event& event) {
   // 更新数据库，删除_user中的值，关闭socket
   LogoutPacket pkt;
   memcpy(&pkt, event.buf, sizeof(pkt));
-  for (auto iter = _users.begin(); iter != _users.end(); ++iter) {
-    // 找到了该用户
-    if (iter->second == pkt.id) {
-      _users.erase(iter);
-      std::stringstream ss;
-      ss << "UPDATE muser SET status = 0, time = CURRENT_TIMESTAMP WHERE uid = "
-         << pkt.id << ";";
-      _db->Exec(ss.str());
-      ss.str("");
-      LOG_INFO("uid=%d logout", pkt.id);
-      return;
+  if (_users.find(pkt.id) == _users.end()) {
+    // 没找到
+    LOG_ERROR("no such uid=%d", pkt.id);
+  } else {
+    _users.erase(pkt.id);
+    std::stringstream ss;
+    ss << "UPDATE muser SET status = 0, time = CURRENT_TIMESTAMP WHERE uid = "
+       << pkt.id << ";";
+    _db->Exec(ss.str());
+    ss.str("");
+    LOG_INFO("uid=%d logout", pkt.id);
+    return;
+  }
+}
+
+void ServerHandler::handle_query(Event& event) {
+  LOG_DEBUG("HANDLE_QUERY");
+  QueryPacket pkt;
+  memcpy(&pkt, event.buf, sizeof(pkt));
+  std::stringstream re;
+  for (auto& item : _users) {
+    int id = item.first;
+    std::stringstream ss;
+    ss << "SELECT uname FROM muser WHERE uid = " << id << ";";
+    _db->Query(ss.str());
+    ss.str("");
+    if (_db->Readable()) {
+      std::string uname = _db->index("uname");
+      re << "uname: " << uname << "\tid: " << id << std::endl;
     }
   }
-  // 没找到
-  LOG_ERROR("no such uid=%d", pkt.id);
+  strcpy(pkt.data, re.str().c_str());
+  _users[pkt.id]->GetSocket()->Send(&pkt, sizeof(pkt), 0);
+  LOG_DEBUG("HANDLE_QUERY uid=%d start a query", pkt.id);
+}
+
+void ServerHandler::handle_message(Event& event) {
+  MessagePacket pkt;
+  memcpy(&pkt, event.buf, sizeof(pkt));
+  strcpy(pkt.time, getCurrentTime().c_str());
+  std::stringstream ss;
+  ss << "SELECT uname FROM muser WHERE uid = " << pkt.id << ";";
+  _db->Query(ss.str());
+  if (_db->Readable()) {
+    std::string n = _db->index("uname");
+    memcpy(&pkt.uname, n.c_str(), n.size());
+    pkt.uname[n.size()] = '\0';
+  }
+  if (pkt.type == 1) {
+    // 广播
+    for (auto& key : _users) {
+      if (key.first == pkt.id) {
+        continue;
+      }
+      key.second->GetSocket()->Send(&pkt, sizeof(pkt));
+    }
+    LOG_DEBUG("HANDLE_MESSAGE uid=%d broadcast len=%d send to users online",
+              pkt.id, strlen(pkt.msg));
+    // 数据库中存 boardcast 信息
+    std::stringstream ss;
+    ss << "SELECT uid FROM muser WHERE status = 0;";
+    _db->Query(ss.str());
+    while (_db->Readable()) {
+      int tid = std::stoi(_db->index("uid"));
+      // 添加到 mmessage 中
+      int uid = pkt.id;
+      int type = pkt.type;
+      std::stringstream ss;
+      ss << "INSERT INTO mmessage(uid, type, tid, msg) VALUES (" << uid << ","
+         << type << "," << tid << "," << pkt.msg << ");";
+      _db->Exec(ss.str());
+      ss.str("");
+    }
+  } else {
+    // 私信
+    if (_users.find(pkt.tid) == _users.end()) {
+      // 在线用户中找不到该用户
+      std::stringstream ss;
+      ss << "SELECT * FROM muser WHERE uid = " << pkt.tid << ";";
+      _db->Query(ss.str());
+      ss.str("");
+      if (!_db->Readable()) {
+        // 用户不存在
+        LOG_ERROR("HANDLE_MESSAGE no uid=%d", pkt.id);
+        return;
+      } else {
+        // 用户不在线，将消息存到数据库
+        std::stringstream ss;
+        ss << "INSERT INTO mmessage(uid, type,tid, msg) VALUES (" << pkt.id
+           << ", " << pkt.type << "," << pkt.tid << ",'" << pkt.msg << "');";
+        _db->Exec(ss.str());
+        ss.str("");
+        LOG_DEBUG("HANDLE_MESSAGE uid=%d tid=%d len=%d isn't online", pkt.id,
+                  pkt.tid, strlen(pkt.msg));
+      }
+    } else {
+      // 找到在线用户直接发送
+      // 用户在线，直接发送
+      _users[pkt.tid]->GetSocket()->Send(&pkt, sizeof(pkt));
+      LOG_DEBUG("HANDLE_MESSAGE uid=%d tid=%d len=%d send success", pkt.id,
+                pkt.tid, strlen(pkt.msg));
+    }
+  }
 }
 
 void ServerHandler::LinkDatabase(Database::ptr db) {
