@@ -5,9 +5,6 @@
 
 #include "chatroom.h"
 
-const std::string sql_path =
-    "/home/miaohn/codes/Chatroom/sql/create_table.sql";
-
 class ServerHandler : public EventHandler {
  public:
   using ptr = std::shared_ptr<ServerHandler>;

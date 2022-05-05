@@ -29,7 +29,7 @@ void ServerHandler::handle_read(Event& event) {
 void ServerHandler::init_database() {
   std::ifstream fs;
   std::stringstream ss;
-  fs.open(sql_path);
+  fs.open(SQL_PATH);
   char ch;
   while (ss && fs.get(ch)) ss.put(ch);
   _db->Exec(ss.str());

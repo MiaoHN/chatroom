@@ -2,7 +2,7 @@
 
 int main(int argc, char const *argv[]) {
   Client client;
-  client.Connect("127.0.0.1", 9999);
+  client.Connect(SERVER_O_IP, PORT);
   client.Start();
   return 0;
 }
