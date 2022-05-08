@@ -10,6 +10,56 @@ C++ 控制台聊天室
 
 ## 协议设计
 
+需要处理的事件有：
+
+1. 登陆
+2. 注册
+3. 注销
+4. 请求信息
+5. 发送消息
+6. 发送文件
+7. 接收文件
+
+```mermaid
+sequenceDiagram
+  participant Client2
+  participant Client1
+  Client1 ->>+ Server: login id=xxx passwd=xxx
+  Server  ->>+ Database: get user's password
+  Database ->>- Server: password is xxx
+  Server ->>- Client1: login response
+  Client1 ->>+ Server: query id=xxx
+  Server  ->>+ Database: get current state for id=xxx
+  Database ->>- Server: current state is xxx
+  Server ->>- Client1: query response xxx
+  alt Client2 online
+    Client1 ->>+ Server: sendmsg id=xxx tid=xxx msg=xxx
+    Server ->>- Client2: sendmsg id=xxx tid=xxx msg=xxx
+  else Client2 offline
+    Client1 ->>+ Server: sendmsg id=xxx tid=xxx msg=xxx
+    Server ->>- Database: sendmsg=xxx id=xxx tid=xxx msg=xxx
+    alt Client2 login
+      Client2 ->>+ Server: login id=xxx passwd=xxx
+      Server  ->>+ Database: get user's password
+      Database ->>- Server: password is xxx
+      Server ->>- Client2: login response
+      loop have msg unread
+        Server ->> Client2: msg id=xxx tid=xxx msg=xxx
+      end
+    end
+  end
+  loop
+    Client1 ->>+ Server: sendfile filename=xxx id=xxx tid=xxx size=xxx curr=xxx data=xxx
+    Server ->>- Client1: sendfile filename=xxx id=xxx tid=xxx size=xxx curr=xxx
+  end
+  loop
+    Client2 ->>+ Server: getfile filename=xxx id=xxx tid=xxx size=xxx curr=xxx
+    Server ->>- Client2: sendfile filename=xxx id=xxx tid=xxx size=xxx curr=xxx data=xxx
+  end
+  Client1 ->>+ Server: logout id=xxx
+  Server ->>- Database: id=xxx logout
+```
+
 ## 结构设计
 
 ### TCPServer 设计
