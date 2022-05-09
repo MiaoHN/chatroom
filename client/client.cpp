@@ -1,5 +1,8 @@
 #include "client.h"
 
+#include <fstream>
+#include <functional>
+
 Client::Client() { _sock = std::make_shared<Socket>(); }
 
 void Client::Connect(const std::string& addr, int port) {
@@ -41,8 +44,15 @@ void Client::Connect(const std::string& addr, int port) {
           }
           break;
         }
-        case CMD::PFILE: {
-          // TODO
+        case CMD::ACCEPTFILE: {
+          this->_sfile_v.notify_one();
+          break;
+        }
+        case CMD::SENDFILE: {
+          _rfile_m.lock();
+          RecvFile();
+          memset(this->buf, 0, sizeof(this->buf));
+          _rfile_m.unlock();
           break;
         }
         default:
@@ -78,7 +88,8 @@ void Client::Start() {
       std::cout << "1. query" << std::endl;
       std::cout << "2. sendmsg" << std::endl;
       std::cout << "3. broadcast" << std::endl;
-      std::cout << "4. logout" << std::endl;
+      std::cout << "4. sendfile" << std::endl;
+      std::cout << "5. logout" << std::endl;
       std::cout << "0. exit" << std::endl;
       int num;
       std::cin >> num;
@@ -95,10 +106,11 @@ void Client::Start() {
           Broadcast();
           break;
         case 4:
-          Logout();
+          SendFile();
           break;
         case 5:
-          return;
+          Logout();
+          break;
         default:
           break;
       }
@@ -205,5 +217,64 @@ void Client::Register() {
   } else {
     LOG_INFO("successfully register! your id=%d", pkt.id);
     return;
+  }
+}
+
+void Client::SendFile() {
+  int tid;
+  std::cout << "Please input target id: ";
+  std::cin >> tid;
+  std::cout << "Please input file name: ";
+  // TODO 文件绝对路径和相对路径转化
+  std::string name;
+  std::cin >> name;
+  std::ifstream f;
+  f.open(name, std::ios::in | std::ios::binary);
+  f.seekg(0, f.end);
+  int filesize = f.tellg();
+  int curr = 0;
+  char buff[1024];
+  AcceptFilePacket akf;
+  while (curr < filesize) {
+    int size = (filesize > curr + 1024) ? 1024 : filesize - curr;
+    f.seekg(curr, f.beg);
+    f.read(buff, size);
+    SendFilePacket pkg(_id, tid, name.c_str(), size, curr, buff);
+    _sock->Send(&pkg, sizeof(pkg));
+    _sfile_v.wait(_sfile_m);
+    memcpy(&akf, buf, sizeof(akf));
+    curr = akf.next_curr;
+  }
+  // 最后发送大小为 0 的报文作为结尾
+  SendFilePacket fina(_id, tid, name.c_str(), 0, curr, buff);
+  _sock->Send(&fina, sizeof(fina));
+}
+
+void Client::RecvFile() {
+  SendFilePacket pkg;
+  memcpy(&pkg, buf, sizeof(pkg));
+  if (pkg.curr == 0 && pkg.datasize == 0) {
+    AcceptFilePacket akf(pkg.id, pkg.filename, 0);
+    _sock->Send(&akf, sizeof(akf));
+    return;
+  }
+  if (pkg.datasize == 0) {
+    std::string filename(pkg.filename);
+    LOG_DEBUG("FILERECV get all file from id = %d, filename = %s", pkg.id,
+              pkg.filename);
+    return;
+
+  } else {
+    // 接收这一部分文件
+    std::string filename(pkg.filename);
+    filename += ".receive";
+    std::ofstream f;
+    f.open(filename, std::ios::app | std::ios::binary);
+    f.seekp(pkg.curr, f.beg);
+    f.write(pkg.data, pkg.datasize);
+    f.close();
+    // 接收完成返回当前进度
+    AcceptFilePacket akf(pkg.id, pkg.filename, pkg.curr + pkg.datasize);
+    _sock->Send(&akf, sizeof(akf));
   }
 }

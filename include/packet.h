@@ -11,6 +11,8 @@ enum CMD {
   PMSG = 4,  // 发送文件
   PFILE = 5,
   PQUERY = 6,  // 查询在线用户
+  SENDFILE = 7,
+  ACCEPTFILE = 8,
 };
 
 struct PacketHeader {
@@ -82,26 +84,41 @@ struct MessagePacket : public PacketHeader {
   char msg[1024];
 };
 
-struct FilePacket : public PacketHeader {
-  FilePacket() { cmd = PFILE; }
-  FilePacket(int _uid, int _tid, const std::string& _filename, int _size,
-             const std::string& _time, int _status, int _curr) {
-    uid = _uid;
+struct SendFilePacket : public PacketHeader {
+  SendFilePacket() {}
+  SendFilePacket(int _id, int _tid, const char* _filename, int _datasize,
+                 int _curr, char* buff) {
+    cmd = CMD::SENDFILE;
+    length = sizeof(SendFilePacket);
+    id = _id;
     tid = _tid;
-    strcpy(filename, _filename.c_str());
-    size = _size;
-    length = sizeof(FilePacket);
-    strcpy(time, _time.c_str());
-    status = _status;
+    strcpy(filename, _filename);
+    datasize = _datasize;
     curr = _curr;
+    memcpy(data, buff, _datasize);
   }
-  int uid;
+  int id;
   int tid;
-  char filename[64];
-  int size;
-  char time[64];
-  int status;  // 0: 发送中，1: 接收中
-  int curr;    // 待发送/接收位置
+  char filename[32];
+  int filesize;
+  int datasize;  // data size in single packet, if
+  int curr;      // position in send file
+  char data[1024];
+};
+
+struct AcceptFilePacket : public PacketHeader {
+  AcceptFilePacket() {}
+  AcceptFilePacket(int _id, const char* _filename, int _next_curr) {
+    cmd = CMD::ACCEPTFILE;
+    length = sizeof(AcceptFilePacket);
+    id = _id;
+    next_curr = _next_curr;
+    strcpy(filename, _filename);
+  }
+  char filename[32];
+  int filesize;
+  int id;
+  int next_curr;
 };
 
 struct QueryPacket : public PacketHeader {

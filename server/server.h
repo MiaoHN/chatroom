@@ -30,6 +30,8 @@ class ServerHandler : public EventHandler {
   void handle_logout(Event& event);
   void handle_query(Event& event);
   void handle_message(Event& event);
+  void handle_sendfile(Event& event);
+  void handle_recvfile(Event& event);
 
  private:
   Database::ptr _db;

@@ -26,6 +26,8 @@ class Client {
   void Logout();
   void Query();
   void Register();
+  void SendFile();
+  void RecvFile();
 
  private:
   Socket::ptr _sock;
@@ -36,9 +38,12 @@ class Client {
   std::mutex _query_m;
   std::mutex _login_m;
   std::mutex _regis_m;
+  std::mutex _sfile_m;
+  std::mutex _rfile_m;
   std::condition_variable_any _query_v;
   std::condition_variable_any _login_v;
   std::condition_variable_any _regis_v;
+  std::condition_variable_any _sfile_v;
 };
 
 #endif  // __CLIENT_H__

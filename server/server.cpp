@@ -22,6 +22,8 @@ void ServerHandler::handle_read(Event& event) {
     XX(PREGISTER, handle_register);
     XX(PMSG, handle_message);
     XX(PQUERY, handle_query);
+    XX(SENDFILE, handle_sendfile);
+    XX(ACCEPTFILE, handle_recvfile);
 #undef XX
     default:
       return;
@@ -270,6 +272,75 @@ void ServerHandler::handle_message(Event& event) {
                 pkt.tid, strlen(pkt.msg));
     }
   }
+}
+
+void ServerHandler::handle_sendfile(Event& event) {
+  SendFilePacket pkg;
+  memcpy(&pkg, event.buf, sizeof(pkg));
+  if (pkg.datasize == 0) {
+    // 文件已经全部接收完成，发送到目标客户端
+    std::string filename(pkg.filename);
+    LOG_DEBUG("FILERECV get all file from id = %d, filename = %s", pkg.id,
+              pkg.filename);
+    filename += ".server";
+    // TODO 等待目标客户端上线，这里假设客户端已经做好了接收文件的准备
+    auto iter = _users.find(pkg.tid);
+    if (iter != _users.end()) {
+      auto user = _users[pkg.tid];
+      std::ifstream sf;
+      sf.open(filename, std::ios::in | std::ios::binary);
+      sf.seekg(0, sf.end);
+      int filesize = sf.tellg();
+      int curr = 0;
+      char buff[1024];
+      AcceptFilePacket akf;
+      SendFilePacket pkt(pkg.id, pkg.tid, pkg.filename, 0, 0, nullptr);
+      iter->second->GetSocket()->Send(&pkt, sizeof(pkt));
+      event.sock->Send(&pkt, sizeof(pkt));
+    }
+  } else {
+    // 接收这一部分文件
+    std::string filename(pkg.filename);
+    filename += ".server";
+    std::ofstream f;
+    f.open(filename, std::ios::app | std::ios::binary);
+    f.seekp(pkg.curr, f.beg);
+    f.write(pkg.data, pkg.datasize);
+    f.close();
+    // 接收完成返回当前进度
+    AcceptFilePacket akf(pkg.id, pkg.filename, pkg.curr + pkg.datasize);
+    event.sock->Send(&akf, sizeof(akf));
+  }
+}
+
+void ServerHandler::handle_recvfile(Event& event) {
+  char buff[1024];
+  AcceptFilePacket pkg;
+  memcpy(&pkg, event.buf, sizeof(pkg));
+  std::string fname(pkg.filename, strlen(pkg.filename));
+  std::string filename(fname);
+  filename += ".server";
+  std::ifstream f;
+  f.open(filename, std::ios::in | std::ios::binary);
+  f.seekg(0, f.end);
+  long long filesize = f.tellg();
+  int curr = pkg.next_curr;
+  if (curr == filesize) {
+    // 最后发送大小为 0 的报文作为结尾
+    SendFilePacket fina(pkg.id, 0, pkg.filename, 0, curr, buff);
+    event.sock->Send(&fina, sizeof(fina));
+    LOG_DEBUG("Succssfully send file to id=%d filename=%s", pkg.id,
+              pkg.filename);
+    remove(filename.c_str());
+    return;
+  }
+  int size = (filesize > curr + 1024) ? 1024 : filesize - curr;
+  f.seekg(curr, f.beg);
+  f.read(buff, size);
+  f.close();
+  LOG_DEBUG("HANDLE_RECV fname=%s size=%d curr=%d", pkg.filename, size, curr);
+  SendFilePacket p(pkg.id, 0, pkg.filename, size, curr, buff);
+  event.sock->Send(&p, sizeof(p));
 }
 
 void ServerHandler::LinkDatabase(Database::ptr db) {
