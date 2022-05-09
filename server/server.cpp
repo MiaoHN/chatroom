@@ -233,7 +233,7 @@ void ServerHandler::handle_message(Event& event) {
       int type = pkt.type;
       std::stringstream ss;
       ss << "INSERT INTO mmessage(uid, type, tid, msg) VALUES (" << uid << ","
-         << type << "," << tid << "," << pkt.msg << ");";
+         << type << "," << tid << ", '" << pkt.msg << "');";
       _db->Exec(ss.str());
       ss.str("");
     }

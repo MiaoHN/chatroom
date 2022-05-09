@@ -55,7 +55,6 @@ void Epoller::handle_read(int sock) {
   while ((ret = s->Recv(eve.buf, siz, 0)) > 0) {
     total += ret;
   }
-  int ret = s->Recv(eve.buf, siz, 0);
   eve.buf[siz] = 0;
   eve.size = total;
   if (total == 0) {
@@ -68,7 +67,6 @@ void Epoller::handle_read(int sock) {
     return;
   }
   eve.sock = s;
-  eve.size = ret;
   eve.type = READ;
   _manager->Add(eve);
 }
