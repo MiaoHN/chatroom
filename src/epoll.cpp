@@ -50,15 +50,20 @@ void Epoller::handle_read(int sock) {
     LOG_ERROR("EPOLLER::HANDLE_READ Invalid packet");
     return;
   }
+  int total = 0;
+  int ret = 0;
+  while ((ret = s->Recv(eve.buf, siz, 0)) > 0) {
+    total += ret;
+  }
   int ret = s->Recv(eve.buf, siz, 0);
   eve.buf[siz] = 0;
-  eve.size = siz;
-  if (ret == 0) {
+  eve.size = total;
+  if (total == 0) {
     eve.sock = s;
     eve.type = DISCONNECT;
     _manager->Add(eve);
     return;
-  } else if (ret == -1) {
+  } else if (total == 0 && ret == -1) {
     LOG_ERROR("recv error");
     return;
   }
