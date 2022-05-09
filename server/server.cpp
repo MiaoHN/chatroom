@@ -324,6 +324,7 @@ void ServerHandler::handle_recvfile(Event& event) {
   f.open(filename, std::ios::in | std::ios::binary);
   f.seekg(0, f.end);
   long long filesize = f.tellg();
+  if (filesize == -1) return;
   int curr = pkg.next_curr;
   if (curr == filesize) {
     // 最后发送大小为 0 的报文作为结尾
