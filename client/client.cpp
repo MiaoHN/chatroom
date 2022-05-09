@@ -116,7 +116,7 @@ void Client::SendMessage() {
   std::cin.ignore();
   std::getline(std::cin, msg);
   MessagePacket pkt(_id, 0, tid, "", msg);
-  _sock->Send(&pkt, sizeof(pkt), 0);
+  _sock->Send(&pkt, pkt.length, 0);
 }
 
 void Client::Broadcast() {
@@ -126,7 +126,7 @@ void Client::Broadcast() {
   std::cin.ignore();
   std::getline(std::cin, msg);
   MessagePacket pkt(_id, 1, 0, "", msg);
-  _sock->Send(&pkt, sizeof(pkt), 0);
+  _sock->Send(&pkt, pkt.length, 0);
 }
 
 void Client::Login() {
@@ -136,7 +136,7 @@ void Client::Login() {
   std::cout << "passwd: ";
   std::cin >> passwd;
   LoginPacket pkt(_id, passwd);
-  _sock->Send(&pkt, sizeof(pkt), 0);
+  _sock->Send(&pkt, pkt.length, 0);
   _login_v.wait(_login_m);
   memcpy(&pkt, buf, sizeof(pkt));
   if (!strcmp(pkt.name, "")) {
@@ -153,7 +153,7 @@ void Client::Logout() {
     return;
   }
   LogoutPacket pkt(_id);
-  _sock->Send(&pkt, sizeof(pkt), 0);
+  _sock->Send(&pkt, pkt.length, 0);
   LOG_DEBUG("logout");
   _islogin = false;
 
@@ -166,7 +166,7 @@ void Client::Query() {
     return;
   }
   QueryPacket pkt(_id, "");
-  _sock->Send(&pkt, sizeof(pkt), 0);
+  _sock->Send(&pkt, pkt.length, 0);
   LOG_DEBUG("QUERY send pkt");
   _query_v.wait(_query_m);
   memcpy(&pkt, buf, sizeof(pkt));
@@ -195,7 +195,7 @@ void Client::Register() {
   }
   RegisterPacket pkt(uname, passwd);
   LOG_DEBUG("here");
-  _sock->Send(&pkt, sizeof(pkt), 0);
+  _sock->Send(&pkt, pkt.length, 0);
   LOG_DEBUG("HERE");
   _regis_v.wait(_regis_m);
   memcpy(&pkt, buf, sizeof(pkt));

@@ -13,6 +13,8 @@ class ServerHandler : public EventHandler {
 
   void LinkDatabase(Database::ptr db);
 
+  int GetLength(Event& event) override;
+
   void handle_read(Event& event) override;
   void handle_disconnect(Event& event) override;
 

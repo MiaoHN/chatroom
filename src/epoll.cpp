@@ -44,10 +44,16 @@ void Epoller::handle_accept() {
 void Epoller::handle_read(int sock) {
   Event eve;
   Socket::ptr s(new Socket(sock));
-  char buf[BUFSIZ];
-  int ret = s->Recv(eve.buf, sizeof(eve.buf), 0);
+  s->Recv(eve.buf, sizeof(PacketHeader), MSG_PEEK);
+  int siz = _manager->GetSize(eve);
+  if (siz == -1) {
+    LOG_ERROR("EPOLLER::HANDLE_READ Invalid packet");
+    return;
+  }
+  int ret = s->Recv(eve.buf, siz, 0);
+  eve.buf[siz] = 0;
+  eve.size = siz;
   if (ret == 0) {
-    eve.size = -1;
     eve.sock = s;
     eve.type = DISCONNECT;
     _manager->Add(eve);

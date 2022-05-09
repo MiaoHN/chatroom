@@ -2,14 +2,16 @@
 
 #include <fstream>
 
+int ServerHandler::GetLength(Event& event) {
+  PacketHeader header;
+  memcpy(&header, event.buf, sizeof(header));
+  if (header.magic != MAGIC) return -1;
+  return header.length;
+}
+
 void ServerHandler::handle_read(Event& event) {
   PacketHeader header;
   memcpy(&header, event.buf, sizeof(header));
-  if (header.magic != MAGIC) {
-    LOG_ERROR("SERVERHANDLER::HANDLE error magic number: %d", header.magic);
-    event.sock->Close();
-    return;
-  }
   switch (header.cmd) {
 #define XX(name, func) \
   case CMD::name:      \
@@ -73,7 +75,7 @@ void ServerHandler::handle_register(Event& event) {
   if (_db->Readable()) {
     // 有重名，返回错误
     pkt.id = -1;
-    event.sock->Send(&pkt, sizeof(pkt));
+    event.sock->Send(&pkt, pkt.length);
     LOG_ERROR("REGISTER same username error");
     return;
   }
@@ -85,7 +87,7 @@ void ServerHandler::handle_register(Event& event) {
   _db->Query(ss.str());
   if (_db->Readable()) {
     pkt.id = std::stoi(_db->index("uid"));
-    event.sock->Send(&pkt, sizeof(pkt));
+    event.sock->Send(&pkt, pkt.length);
     LOG_INFO("REGISTER success, id=%d, username=%s", pkt.id, pkt.name);
   } else {
     LOG_ERROR("REGISTER error");
@@ -95,7 +97,7 @@ void ServerHandler::handle_register(Event& event) {
 void ServerHandler::handle_login(Event& event) {
   LOG_DEBUG("HANDLE_LOGIN");
   LoginPacket pkt;
-  memcpy(&pkt, event.buf, sizeof(pkt));
+  memcpy(&pkt, event.buf, event.size);
 
   std::stringstream ss;
   ss << "SELECT uname, passwd, status FROM muser WHERE uid = " << pkt.id << ";";
@@ -106,7 +108,7 @@ void ServerHandler::handle_login(Event& event) {
     if (strcmp(_db->index("passwd").c_str(), pkt.passwd)) {
       // 密码错误
       strcpy(pkt.name, "");
-      event.sock->Send(&pkt, sizeof(pkt));
+      event.sock->Send(&pkt, pkt.length);
       LOG_ERROR("LOGIN passwd wrong! id=%d", pkt.id);
       return;
     } else {
@@ -114,13 +116,13 @@ void ServerHandler::handle_login(Event& event) {
       // 如果已经登陆则报错
       if (std::stoi(_db->index("status")) == 1) {
         strcpy(pkt.name, "");
-        event.sock->Send(&pkt, sizeof(pkt));
+        event.sock->Send(&pkt, pkt.length);
         LOG_ERROR("LOGIN id=%d have login!", pkt.id);
         return;
       }
       // 返回 username
       strcpy(pkt.name, _db->index("uname").c_str());
-      event.sock->Send(&pkt, sizeof(pkt));
+      event.sock->Send(&pkt, pkt.length);
       LOG_INFO("LOGIN uid=%d login!", pkt.id);
       // 改变登陆状态
       ss << "UPDATE muser SET status = 1, time = CURRENT_TIMESTAMP WHERE uid "
@@ -141,7 +143,7 @@ void ServerHandler::handle_login(Event& event) {
         std::string msg = _db->index("msg");
         std::string mtime = _db->index("time");
         MessagePacket msgpkt(uid, type, tid, mtime, msg);
-        _users[pkt.id]->GetSocket()->Send(&msgpkt, sizeof(msgpkt), 0);
+        _users[pkt.id]->GetSocket()->Send(&msgpkt, msgpkt.length, 0);
       }
       // 删除未读消息
       ss << "DELETE FROM mmessage WHERE tid = " << pkt.id << ";";
@@ -152,7 +154,7 @@ void ServerHandler::handle_login(Event& event) {
   } else {
     // 该用户不存在
     strcpy(pkt.name, "");
-    event.sock->Send(&pkt, sizeof(pkt));
+    event.sock->Send(&pkt, pkt.length);
     LOG_ERROR("LOGIN no such uid=%d", pkt.id);
     return;
   }
@@ -194,7 +196,7 @@ void ServerHandler::handle_query(Event& event) {
     }
   }
   strcpy(pkt.data, re.str().c_str());
-  _users[pkt.id]->GetSocket()->Send(&pkt, sizeof(pkt), 0);
+  _users[pkt.id]->GetSocket()->Send(&pkt, pkt.length, 0);
   LOG_DEBUG("HANDLE_QUERY uid=%d start a query", pkt.id);
 }
 
@@ -216,7 +218,7 @@ void ServerHandler::handle_message(Event& event) {
       if (key.first == pkt.id) {
         continue;
       }
-      key.second->GetSocket()->Send(&pkt, sizeof(pkt));
+      key.second->GetSocket()->Send(&pkt, pkt.length);
     }
     LOG_DEBUG("HANDLE_MESSAGE uid=%d broadcast len=%d send to users online",
               pkt.id, strlen(pkt.msg));
@@ -260,7 +262,7 @@ void ServerHandler::handle_message(Event& event) {
     } else {
       // 找到在线用户直接发送
       // 用户在线，直接发送
-      _users[pkt.tid]->GetSocket()->Send(&pkt, sizeof(pkt));
+      _users[pkt.tid]->GetSocket()->Send(&pkt, pkt.length);
       LOG_DEBUG("HANDLE_MESSAGE uid=%d tid=%d len=%d send success", pkt.id,
                 pkt.tid, strlen(pkt.msg));
     }

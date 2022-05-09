@@ -28,6 +28,12 @@ class EventHandler {
   EventHandler() {}
   virtual ~EventHandler() {}
 
+  /**
+   * @brief 获取报文长度，如果报文非法返回 -1
+   *
+   */
+  virtual int GetLength(Event& event) = 0;
+
   virtual void handle_read(Event& event) = 0;
   virtual void handle_disconnect(Event& event) = 0;
 };
@@ -42,6 +48,8 @@ class EventManager {
 
   void Add(Event event);
   void Stop();
+
+  int GetSize(Event& event) { return _handler->GetLength(event); }
 
  private:
   EventHandler::ptr _handler;  // 事件处理句柄
