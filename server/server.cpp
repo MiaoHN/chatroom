@@ -296,7 +296,6 @@ void ServerHandler::handle_sendfile(Event& event) {
       AcceptFilePacket akf;
       SendFilePacket pkt(pkg.id, pkg.tid, pkg.filename, 0, 0, nullptr);
       iter->second->GetSocket()->Send(&pkt, sizeof(pkt));
-      event.sock->Send(&pkt, sizeof(pkt));
     }
   } else {
     // 接收这一部分文件

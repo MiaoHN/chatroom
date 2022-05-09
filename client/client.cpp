@@ -262,6 +262,9 @@ void Client::RecvFile() {
     std::string filename(pkg.filename);
     LOG_DEBUG("FILERECV get all file from id = %d, filename = %s", pkg.id,
               pkg.filename);
+    std::string fn(pkg.filename, strlen(pkg.filename));
+    fn += ".receive";
+    rename(fn.c_str(), pkg.filename);
     return;
 
   } else {
