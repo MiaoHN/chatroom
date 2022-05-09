@@ -165,7 +165,7 @@ void Client::Query() {
     LOG_ERROR("is not login");
     return;
   }
-  QueryPacket pkt(_id, "");
+  QueryPacket pkt(_id, ".");
   _sock->Send(&pkt, pkt.length, 0);
   LOG_DEBUG("QUERY send pkt");
   _query_v.wait(_query_m);

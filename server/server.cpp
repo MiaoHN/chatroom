@@ -187,16 +187,19 @@ void ServerHandler::handle_query(Event& event) {
   for (auto& item : _users) {
     int id = item.first;
     std::stringstream ss;
-    ss << "SELECT uname FROM muser WHERE uid = " << id << ";";
+    ss << "SELECT uname, status FROM muser WHERE uid = " << id << ";";
     _db->Query(ss.str());
     ss.str("");
     if (_db->Readable()) {
       std::string uname = _db->index("uname");
-      re << "uname: " << uname << "\tid: " << id << std::endl;
+      int status = std::stoi(_db->index("status"));
+      std::string statu = status == 0 ? "offline" : "online";
+      re << "uname: " << uname << "\tid: " << id << "\tstatus: " << statu
+         << std::endl;
     }
   }
   strcpy(pkt.data, re.str().c_str());
-  _users[pkt.id]->GetSocket()->Send(&pkt, pkt.length, 0);
+  event.sock->Send(&pkt, pkt.length, 0);
   LOG_DEBUG("HANDLE_QUERY uid=%d start a query", pkt.id);
 }
 
