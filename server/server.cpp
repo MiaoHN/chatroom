@@ -338,7 +338,8 @@ void ServerHandler::handle_recvfile(Event& event) {
   f.seekg(curr, f.beg);
   f.read(buff, size);
   f.close();
-  LOG_DEBUG("HANDLE_RECV fname=%s size=%d curr=%d", pkg.filename, size, curr);
+  if (curr % 1000)
+    LOG_DEBUG("HANDLE_RECV fname=%s size=%d curr=%d", pkg.filename, size, curr);
   SendFilePacket p(pkg.id, 0, pkg.filename, size, curr, buff);
   event.sock->Send(&p, sizeof(p));
 }
