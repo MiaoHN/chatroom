@@ -244,6 +244,8 @@ void Client::SendFile() {
     _sfile_v.wait(_sfile_m);
     memcpy(&akf, buf, sizeof(akf));
     curr = akf.next_curr;
+    std::cout << "\r" << name << ": " << (int)(((float)curr / filesize) * 100)
+              << "%" << std::endl;
   }
   // 最后发送大小为 0 的报文作为结尾
   SendFilePacket fina(_id, tid, name.c_str(), 0, curr, buff);
